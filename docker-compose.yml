@@ -1,0 +1,196 @@
+services:
+
+  rag-api:
+    build: ./rag-platform/services/rag-api
+    container_name: rag-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./rag-platform/services/rag-api:/app
+      - ./rag-platform/scripts:/app/scripts
+    depends_on:
+      - qdrant
+      - redis
+      - postgres
+      - llm-gateway
+    environment:
+      QDRANT_HOST: qdrant
+      REDIS_HOST: redis
+      POSTGRES_HOST: postgres
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+    restart: unless-stopped
+
+  llm-gateway:
+    build: ./rag-platform/services/llm-gateway
+    container_name: llm-gateway
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./rag-platform/services/llm-gateway:/app
+    restart: unless-stopped
+
+  # doc-ingestion:
+  #   build:
+  #     context: ./rag-platform/services/doc-ingestion
+  #   container_name: doc-ingestion
+  #   volumes:
+  #     - ./rag-platform/services/doc-ingestion:/app
+  #     - ./rag-platform/connectors:/app/connectors
+  #     - ./docs:/docs
+  #   command: python main.py
+  #   environment:
+  #     QDRANT_HOST: qdrant
+  #     QDRANT_PORT: 6333
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_DB: ragdb
+  #     POSTGRES_USER: raguser
+  #     POSTGRES_PASSWORD: ragpass
+  #     DOCS_PATH: /docs
+  #   depends_on:
+  #     - qdrant
+  #     - postgres
+  #   restart: "no"
+
+  doc-ingestion:
+    build:
+      context: ./rag-platform/services/doc-ingestion
+    container_name: doc-ingestion
+    volumes:
+      - ./rag-platform/services/doc-ingestion:/app
+      - ./docs:/docs
+      - ./data:/data
+    command: python main.py
+    environment:
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: raguser
+      POSTGRES_PASSWORD: ragpass
+      DOCS_PATH: /docs
+      ENABLE_GITHUB: "true"
+      ENABLE_FILESYSTEM: "false"
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      FILESYSTEM_DOC_PATH: /docs-source
+      GIT_REGISTRY_DB: /data/git_registry.db
+
+    depends_on:
+      - qdrant
+      - postgres
+
+    restart: "no"
+
+  embedding-worker:
+    build: ./rag-platform/services/embedding-worker
+    container_name: embedding-worker
+    volumes:
+      - ./rag-platform/services/embedding-worker:/app
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: raguser
+      POSTGRES_PASSWORD: ragpass
+      POSTGRES_DB: ragdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data1:/root/.ollama
+    restart: unless-stopped
+
+  ollama2:
+    image: ollama/ollama
+    container_name: ollama2
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data2:/root/.ollama
+    restart: unless-stopped
+
+  ollama3:
+    image: ollama/ollama
+    container_name: ollama3
+    ports:
+      - "11436:11434"
+    volumes:
+      - ollama_data3:/root/.ollama
+    restart: unless-stopped
+
+  # ollama-init:
+  #   image: ollama/ollama
+  #   container_name: ollama-init
+  #   depends_on:
+  #     - ollama
+  #   entrypoint: >
+  #     sh -c "
+  #     echo 'Waiting for Ollama to start...' &&
+  #     sleep 10 &&
+  #     echo 'Pulling mistral...' &&
+  #     OLLAMA_HOST=http://ollama:11434 ollama pull mistral &&
+  #     echo 'Pulling llama3...' &&
+  #     OLLAMA_HOST=http://ollama:11434 ollama pull llama3 &&
+  #     echo 'Models installed'
+  #     "
+  #   restart: "no"
+
+  ollama-init:
+    image: ollama/ollama
+    container_name: ollama-init
+    depends_on:
+      - ollama
+      - ollama2
+      - ollama3
+    entrypoint: >
+      sh -c "
+      echo 'Waiting for Ollama servers to start...' &&
+      sleep 15 &&
+
+      echo 'Installing model on ollama...' &&
+      OLLAMA_HOST=http://ollama:11434 ollama pull phi3:mini &&
+
+      echo 'Installing model on ollama2...' &&
+      OLLAMA_HOST=http://ollama2:11434 ollama pull phi3:mini &&
+
+      echo 'Installing model on ollama3...' &&
+      OLLAMA_HOST=http://ollama3:11434 ollama pull phi3:mini &&
+
+      echo 'All Ollama workers ready'
+      "
+    restart: "no"
+
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  ollama_data1:
+  ollama_data2:
+  ollama_data3:

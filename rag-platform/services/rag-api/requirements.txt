@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+qdrant-client
+sentence-transformers
+numpy
+redis
+httpx
+psycopg2-binary
+nltk
+qdrant-client
+psycopg2-binary
+rank-bm25
+ruff
+black
