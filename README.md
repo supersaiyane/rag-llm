@@ -1,4 +1,4 @@
-# 🚀 RAG AI Platform -- Architect-Level README
+# 🚀 RAG AI Platform
 
 ------------------------------------------------------------------------
 
